@@ -57,7 +57,7 @@ python3.x PhishScanner.py -u url [-f config.ini] [-v]
 ## API Key Configuration
 After downloading the repository and getting your API Keys, you need to configure the config.ini file before executing the script. Here is how to do that:
 ```
-cd ./HookPhish
+cd ./PhishScanner
 cd config
 ```
 Then, you need to edit the config.ini file. Feel free to use your favorite text editor. In my case, I will use nano
