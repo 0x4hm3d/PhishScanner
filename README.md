@@ -1,6 +1,6 @@
 ![image](https://github.com/0liverFlow/HookPhish/assets/64969369/1eed2645-3514-4fe1-bec2-3644dfa3e4e8)
 
-# HookPhish
+# PhishScanner
 [![Python](https://img.shields.io/badge/Python-3.x-yellow.svg)](https://www.python.org/) 
 ![Version 1.1](http://img.shields.io/badge/version-v1.1-orange.svg) ![License](https://img.shields.io/badge/license-MIT-red.svg) <img src="https://img.shields.io/badge/Maintained%3F-Yes-96c40f"> 
 
