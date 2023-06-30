@@ -14,13 +14,13 @@ PhishScanner is a Python script designed to aid in the detection of phishing web
 - Real-Time Screenshot
 
 Moreover, it utilizes the APIs of <a href="https://www.virustotal.com/gui/join-us">virustotal.com</a>, <a href="https://urlscan.io/docs/api/">urlscan.io</a> and <a href="https://www.abuseipdb.com/api">abuseipdb</a> to enhance its functionality.
-Nevertheless, it's worth noting that you need to specify the corresponding api keys to use the API Key Integration feature.
+Nevertheless, it's worth noting that you need to specify the corresponding API keys to use the API Key Integration feature.
 
 ## Demonstration
 [![asciicast](https://asciinema.org/a/1U3yiPKU0aP0VU4rU9iSU56n6.svg)](https://asciinema.org/a/1U3yiPKU0aP0VU4rU9iSU56n6)
 
 ## Installation & Usage
-HookPhish is a cross platform script that works with python **3.x**.
+HookPhish is a cross-platform script that works with Python **3.x**.
 ```
 git clone https://github.com/0liverFlow/HookPhish
 cd ./HookPhish
