@@ -23,7 +23,7 @@ Nevertheless, it's worth noting that you need to specify the corresponding API k
 HookPhish is a cross-platform script that works with Python **3.x**.
 ```
 git clone https://github.com/0x4hm3d/PhishScanner.git
-cd ./HookPhish
+cd ./PhishScanner
 pip3 install -r requirements.txt
 ```
 Then you can run it
