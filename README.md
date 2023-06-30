@@ -1,11 +1,11 @@
-![image](https://github.com/0liverFlow/HookPhish/assets/64969369/1eed2645-3514-4fe1-bec2-3644dfa3e4e8)
+![image](https://github.com/0x4hm3d/PhishScanner/assets/81084776/c7fee512-e075-4d61-904b-cf7b46af0135)
 
 # PhishScanner
 [![Python](https://img.shields.io/badge/Python-3.x-yellow.svg)](https://www.python.org/) 
 ![Version 1.1](http://img.shields.io/badge/version-v1.1-orange.svg) ![License](https://img.shields.io/badge/license-MIT-red.svg) <img src="https://img.shields.io/badge/Maintained%3F-Yes-96c40f"> 
 
 ## Purpose
-HookPhish is a Python script designed to aid in the detection of phishing websites. It performs various checks on suspected URLs to identify potential threats. The script incorporates multiple checks, namely:
+PhishScanner is a Python script designed to aid in the detection of phishing websites. It performs various checks on suspected URLs to identify potential threats. The script incorporates multiple checks, namely:
 - Shortened URL Check
 - Tracking IP Domain Check
 - Redirection Check
