@@ -22,18 +22,18 @@ Nevertheless, it's worth noting that you need to specify the corresponding API k
 ## Installation & Usage
 HookPhish is a cross-platform script that works with Python **3.x**.
 ```
-git clone https://github.com/0liverFlow/HookPhish
+git clone https://github.com/0x4hm3d/PhishScanner.git
 cd ./HookPhish
 pip3 install -r requirements.txt
 ```
 Then you can run it
 ```
-python3.x HookPhish.py -u url [-f config.ini] [-v]
+python3.x PhishScanner.py -u url [-f config.ini] [-v]
 ```
 
 ## Important Notes
 1. You don't need administrator privileges to run this script.
-2. Though you can run this script without specifying <a href="https://www.virustotal.com/gui/join-us">virustotal.com</a>, <a href="https://urlscan.io/docs/api/">urlscan.io</a> and <a href="https://www.abuseipdb.com/api">abuseipdb</a>'s api keys, it is recommended to use them in order to obtain more specific information concerning the suspected URL. To get the API keys, you need to create an account. For that, you can simply generate a temporary email using <a href="https://temp-mail.org/">tempmail.org</a> and that's it.
+2. Though you can run this script without specifying <a href="https://www.virustotal.com/gui/join-us">virustotal.com</a>, <a href="https://urlscan.io/docs/api/">urlscan.io</a> and <a href="https://www.abuseipdb.com/api">abuseipdb</a>'s API keys, it is recommended to use them in order to obtain more specific information concerning the suspected URL. To get the API keys, you need to create an account. For that, you can simply generate a temporary email using <a href="https://temp-mail.org/">tempmail.org</a> and that's it.
 3. The APIs used by the script have a limited rate.
 <table>
   <tr>
@@ -60,22 +60,21 @@ After downloading the repository and getting your API Keys, you need to configur
 cd ./HookPhish
 cd config
 ```
-Then, you need to edit the config.ini file. Feel free to use your favorite text editor. In my case, i will use vim
+Then, you need to edit the config.ini file. Feel free to use your favorite text editor. In my case, I will use nano
 ```
 vim config.ini
 ```
-<img width="1512" alt="image" src="https://github.com/0liverFlow/HookPhish/assets/64969369/4988edd2-a07e-47d3-9304-180a3dd25d64">
+<img width="1512" alt="image" src="https://github.com/0x4hm3d/PhishScanner/assets/81084776/d1825f7c-cc78-4f9c-aef6-e77dae2f24e5">
 
 #### Warning⚠️: Do not put the API key between double quotes, only copy and paste it!
 
 After properly configuring the API keys, you should be able to get more information using the -f/--file option followed by the config.ini file.
 ```
-python3.x HookPhish.py -u url -f config.ini -v
+python3.x PhishScanner.py -u url -f config.ini -v
 ```
 
 ## Latest Release Notes
 - Virustotal check was added. You only need to specify the API key to use it.
 
 ## Contribution
-1. If you noticed any bugs, thanks to report <a href="https://github.com/0liverFlow/HookPhish/issues">here</a> 
-2. For any interesting idea, thanks to ping me at <a href="mailto:0liverFlow@proton.me">0liverFlow</a>
+1. If you noticed any bugs, thanks to reporting <a href="https://github.com/0x4hm3d/PhishScanner/issues">here</a> 
