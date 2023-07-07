@@ -358,7 +358,7 @@ class PhishDetector:
                 printc(f"N/A")
         elif response.status_code == 401:
             printc(f"[red3][-][/red3] {response.json()['errors'][0]['detail']}")
-            printc(f"[gold1][!][/gold1] Thanks to read the documentation: https://github.com/0liverFlow/HookPhish/blob/main/README.md")
+            printc(f"[gold1][!][/gold1] Thanks to read the documentation: https://github.com/0x4hm3d/PhishScanner/blob/main/README.md")
         else:
             printc(f"[red3][-][/red3] {response.text}")
-            printc(f"[gold1][!][/gold1] Thanks to report this issue at https://github.com/0liverFlow/HookPhish/issues")
+            printc(f"[gold1][!][/gold1] Thanks to report this issue at https://github.com/0x4hm3d/PhishScanner/issues")
