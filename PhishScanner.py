@@ -86,4 +86,4 @@ if __name__ == "__main__":
     phish_detector.webpage_illustration() 
     # Script execution's information
     date, time = datetime.now().date(), datetime.now().strftime("%H:%M:%S")
-    printc(f"\nHookPhish >-))))->: [red3]{phish_detector.defanged_url}[/red3]'s scan finished at {date} {time}")
+    printc(f"\nPhishScanner >-))))->: [red3]{phish_detector.defanged_url}[/red3]'s scan finished at {date} {time}")
