@@ -20,7 +20,7 @@ Nevertheless, it's worth noting that you need to specify the corresponding API k
 [![asciicast](https://asciinema.org/a/63VZyWfCWpm3K3cKoegKRyLsj.svg)](https://asciinema.org/a/63VZyWfCWpm3K3cKoegKRyLsj)
 
 ## Installation & Usage
-HookPhish is a cross-platform script that works with Python **3.x**.
+PhishScanner is a cross-platform script that works with Python **3.x**.
 ```
 git clone https://github.com/0x4hm3d/PhishScanner.git
 cd ./PhishScanner
