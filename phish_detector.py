@@ -323,7 +323,7 @@ class PhishDetector:
                 printc(f"[gold1][!][/gold1] You can find more information here: https://urlscan.io/docs/api/#ratelimit")
         else:
             printc(f"[red3][-][/red3] {response.text}")
-            printc(f"[gold1][!][/gold1] Thanks to report this issue at https://github.com/0liverFlow/HookPhish/issues")
+            printc(f"[gold1][!][/gold1] Thanks to report this issue at https://github.com/0x4hm3d/PhishScanner/issues")
 
     def check_abuse_ip_db(self, ip_address: str, api_key: str, verbosity: bool) -> None:
         url = 'https://api.abuseipdb.com/api/v2/check'
