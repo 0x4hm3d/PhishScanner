@@ -2,7 +2,7 @@
 
 # PhishScanner
 [![Python](https://img.shields.io/badge/Python-3.x-yellow.svg)](https://www.python.org/) 
-![Version 1.1](http://img.shields.io/badge/version-v1.1-orange.svg) ![License](https://img.shields.io/badge/license-MIT-red.svg) <img src="https://img.shields.io/badge/Maintained%3F-Yes-96c40f"> 
+![Version 1.0](http://img.shields.io/badge/version-v1.0-orange.svg) ![License](https://img.shields.io/badge/license-MIT-red.svg) <img src="https://img.shields.io/badge/Maintained%3F-Yes-96c40f"> 
 
 ## Purpose
 PhishScanner is a Python script designed to aid in the detection of phishing websites. It performs various checks on suspected URLs to identify potential threats. The script incorporates multiple checks, namely:
@@ -72,9 +72,6 @@ After properly configuring the API keys, you should be able to get more informat
 ```
 python3.x PhishScanner.py -u url -f config.ini -v
 ```
-
-## Latest Release Notes
-- Virustotal check was added. You only need to specify the API key to use it.
 
 ## Contribution
 1. If you noticed any bugs, thanks to reporting <a href="https://github.com/0x4hm3d/PhishScanner/issues">here</a> 
