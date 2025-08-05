@@ -2,318 +2,259 @@
 """
 Configuration validation module for PhishScanner.
 
-This module provides configuration validation and schema checking
-for API keys and application settings.
+This standalone script validates the 'config.ini' file using Pydantic schemas
+to ensure all API keys and settings are correctly formatted. It can also be
+used to generate a sample configuration file.
 
 Author: 0x4hm3d
-Version: 2.0
+Version: 2.2 (Revised)
 """
 
 import re
-from pathlib import Path
-from typing import Dict, List, Optional, Any
-from dataclasses import dataclass
+import sys
 import configparser
 import logging
+from pathlib import Path
+from typing import Dict, List, Optional, Any
 
-from pydantic import BaseModel, validator, ValidationError
+# This script has an optional dependency on Pydantic.
+# If not installed, some validation will be skipped.
+try:
+    from pydantic import BaseModel, field_validator, ValidationError
+    PYDANTIC_AVAILABLE = True
+except ImportError:
+    PYDANTIC_AVAILABLE = False
 
+from rich import print as printc
+from rich.panel import Panel
 
-class APIKeyConfig(BaseModel):
-    """Configuration model for API keys."""
-    
-    abuse_ip_db: str = ""
-    urlscan_io: str = ""
-    virustotal: str = ""
-    
-    @validator('abuse_ip_db')
-    def validate_abuseipdb_key(cls, v):
-        """Validate AbuseIPDB API key format."""
-        if v and not re.match(r'^[a-f0-9]{80}$', v):
-            logging.warning("AbuseIPDB API key format may be invalid (expected 80 hex chars)")
-        return v
-    
-    @validator('virustotal')
-    def validate_virustotal_key(cls, v):
-        """Validate VirusTotal API key format."""
-        if v and not re.match(r'^[a-f0-9]{64}$', v):
-            logging.warning("VirusTotal API key format may be invalid (expected 64 hex chars)")
-        return v
-    
-    @validator('urlscan_io')
-    def validate_urlscan_key(cls, v):
-        """Validate URLScan.io API key format."""
-        if v and not re.match(r'^[a-f0-9-]{36}$', v):
-            logging.warning("URLScan.io API key format may be invalid (expected UUID format)")
-        return v
+# --- Pydantic Models for Validation (if available) ---
 
+if PYDANTIC_AVAILABLE:
+    class APIKeyConfig(BaseModel):
+        """Pydantic model for validating the [APIs] section of the config."""
+        abuse_ip_db: str = ""
+        urlscan_io: str = ""
+        virustotal: str = ""
 
-class AppConfig(BaseModel):
-    """Configuration model for application settings."""
-    
-    timeout: int = 30
-    max_redirects: int = 10
-    user_agent_rotation: bool = True
-    cache_enabled: bool = True
-    cache_ttl: int = 3600
-    log_level: str = "INFO"
-    
-    @validator('timeout')
-    def validate_timeout(cls, v):
-        """Validate timeout value."""
-        if v < 1 or v > 300:
-            raise ValueError("Timeout must be between 1 and 300 seconds")
-        return v
-    
-    @validator('max_redirects')
-    def validate_max_redirects(cls, v):
-        """Validate max redirects value."""
-        if v < 0 or v > 50:
-            raise ValueError("Max redirects must be between 0 and 50")
-        return v
-    
-    @validator('cache_ttl')
-    def validate_cache_ttl(cls, v):
-        """Validate cache TTL value."""
-        if v < 0 or v > 86400:  # 24 hours max
-            raise ValueError("Cache TTL must be between 0 and 86400 seconds")
-        return v
-    
-    @validator('log_level')
-    def validate_log_level(cls, v):
-        """Validate log level."""
-        valid_levels = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
-        if v.upper() not in valid_levels:
-            raise ValueError(f"Log level must be one of: {', '.join(valid_levels)}")
-        return v.upper()
+        @field_validator('abuse_ip_db')
+        def validate_abuseipdb_key(cls, v):
+            """Validate AbuseIPDB API key format (optional check)."""
+            if v and not re.match(r'^[a-f0-9]{40,100}$', v): # More flexible length
+                logging.warning("AbuseIPDB API key format appears unusual.")
+            return v
 
+        @field_validator('virustotal')
+        def validate_virustotal_key(cls, v):
+            """Validate VirusTotal API key format (optional check)."""
+            if v and not re.match(r'^[a-f0-9]{64}$', v):
+                logging.warning("VirusTotal API key format appears invalid (expected 64 hex chars).")
+            return v
 
-@dataclass
-class ConfigValidationResult:
-    """Result of configuration validation."""
-    is_valid: bool
-    errors: List[str]
-    warnings: List[str]
-    config: Optional[Dict[str, Any]] = None
+        @field_validator('urlscan_io')
+        def validate_urlscan_key(cls, v):
+            """Validate URLScan.io API key format (optional check)."""
+            if v and not re.match(r'^[a-f0-9-]{36}$', v):
+                logging.warning("URLScan.io API key format appears invalid (expected UUID format).")
+            return v
 
+    class AppConfig(BaseModel):
+        """Pydantic model for validating the [Settings] section of the config."""
+        timeout: int = 30
+        log_level: str = "INFO"
+
+        @field_validator('timeout')
+        def validate_timeout(cls, v):
+            """Validate timeout value is within a reasonable range."""
+            if not 1 <= v <= 300:
+                raise ValueError("Timeout must be between 1 and 300 seconds.")
+            return v
+
+        @field_validator('log_level')
+        def validate_log_level(cls, v):
+            """Validate the log level string."""
+            valid_levels = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
+            if v.upper() not in valid_levels:
+                raise ValueError(f"Log level must be one of: {', '.join(valid_levels)}")
+            return v.upper()
+
+# --- Main Validator Class ---
 
 class ConfigValidator:
-    """Configuration validator for PhishScanner."""
-    
+    """
+    Validates the PhishScanner config.ini file for structural integrity,
+    required sections, and valid values.
+    """
     def __init__(self):
         self.logger = logging.getLogger(__name__)
-    
-    def validate_config_file(self, config_path: Path) -> ConfigValidationResult:
+        logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+        if not PYDANTIC_AVAILABLE:
+            self.logger.warning("Pydantic is not installed. Advanced validation will be skipped. Run 'pip install pydantic'.")
+
+    def validate_config_file(self, config_path: Path) -> None:
         """
-        Validate configuration file.
+        Orchestrates the validation of a given config.ini file and prints the results.
         
         Args:
-            config_path: Path to configuration file
-            
-        Returns:
-            ConfigValidationResult with validation status and details
+            config_path: The path to the config.ini file.
         """
         errors = []
         warnings = []
-        config_data = {}
-        
+
+        if not config_path.exists():
+            printc(Panel(f"[bold red]Error:[/] Configuration file not found at '[cyan]{config_path}[/cyan]'.",
+                         title="[bold red]Validation Failed[/]", border_style="red"))
+            sys.exit(1)
+
         try:
-            # Check if file exists
-            if not config_path.exists():
-                errors.append(f"Configuration file not found: {config_path}")
-                return ConfigValidationResult(False, errors, warnings)
-            
-            # Parse configuration file
             config = configparser.ConfigParser()
             config.read(config_path)
-            
-            # Validate structure
+
+            # Basic structural validation
             if 'APIs' not in config:
-                errors.append("Missing [APIs] section in configuration file")
+                errors.append("Configuration is missing the required '[APIs]' section.")
             else:
-                # Extract API keys
-                api_config_data = {
-                    'abuse_ip_db': config['APIs'].get('ABUSEIPDB_API_KEY', ''),
-                    'urlscan_io': config['APIs'].get('URLSCAN_API_KEY', ''),
-                    'virustotal': config['APIs'].get('VIRUSTOTAL_API_KEY', '')
-                }
-                
-                # Validate API keys
-                try:
-                    api_config = APIKeyConfig(**api_config_data)
-                    config_data['apis'] = api_config.dict()
-                except ValidationError as e:
-                    for error in e.errors():
-                        errors.append(f"API key validation error: {error['msg']}")
+                self._validate_apis_section(config, errors, warnings)
             
-            # Validate app settings if present
             if 'Settings' in config:
-                app_config_data = {
-                    'timeout': config['Settings'].getint('timeout', 30),
-                    'max_redirects': config['Settings'].getint('max_redirects', 10),
-                    'user_agent_rotation': config['Settings'].getboolean('user_agent_rotation', True),
-                    'cache_enabled': config['Settings'].getboolean('cache_enabled', True),
-                    'cache_ttl': config['Settings'].getint('cache_ttl', 3600),
-                    'log_level': config['Settings'].get('log_level', 'INFO')
-                }
-                
-                try:
-                    app_config = AppConfig(**app_config_data)
-                    config_data['settings'] = app_config.dict()
-                except ValidationError as e:
-                    for error in e.errors():
-                        errors.append(f"Settings validation error: {error['msg']}")
-            
-            # Check for placeholder values
-            self._check_placeholder_values(config_data.get('apis', {}), warnings)
-            
-        except Exception as e:
-            errors.append(f"Error reading configuration file: {e}")
+                self._validate_settings_section(config, errors)
+
+        except configparser.Error as e:
+            errors.append(f"Failed to parse the configuration file: {e}")
+
+        # --- Print Results ---
+        printc(Panel(f"Validation results for '[cyan]{config_path}[/cyan]'",
+                     title="[bold]Configuration Check[/]", border_style="blue"))
+
+        if errors:
+            printc("[bold red]Errors Found:[/]")
+            for error in errors:
+                printc(f"  [red]✗ {error}[/red]")
         
-        is_valid = len(errors) == 0
-        return ConfigValidationResult(is_valid, errors, warnings, config_data)
-    
-    def _check_placeholder_values(self, api_config: Dict[str, str], warnings: List[str]) -> None:
-        """Check for placeholder API key values."""
-        placeholder_patterns = [
-            'your_.*_api_key',
-            '.*_API_KEY',
-            'ABUSE_APT_KEY',  # Common typo
-            'VT_API_KEY',
-            'URLSCAN_API_KEY'
-        ]
-        
-        for service, key in api_config.items():
+        if warnings:
+            printc("\n[bold yellow]Warnings:[/]")
+            for warning in warnings:
+                printc(f"  [yellow]⚠ {warning}[/yellow]")
+
+        if not errors:
+            printc("\n[bold green]✓ Configuration appears to be valid![/bold green]")
+        else:
+            printc("\n[bold red]✗ Configuration has errors that must be fixed.[/bold red]")
+
+    def _validate_apis_section(self, config: configparser.ConfigParser, errors: list, warnings: list):
+        """Validates the [APIs] section."""
+        api_keys = {
+            'abuse_ip_db': config['APIs'].get('ABUSEIPDB_API_KEY', ''),
+            'urlscan_io': config['APIs'].get('URLSCAN_API_KEY', ''),
+            'virustotal': config['APIs'].get('VIRUSTOTAL_API_KEY', '')
+        }
+
+        # Check for empty or placeholder keys
+        for service, key in api_keys.items():
             if not key:
-                warnings.append(f"{service} API key is empty")
-                continue
-                
-            for pattern in placeholder_patterns:
-                if re.match(pattern, key, re.IGNORECASE):
-                    warnings.append(f"{service} API key appears to be a placeholder: {key}")
-                    break
-    
+                warnings.append(f"The API key for '{service}' is empty. Related checks will be skipped.")
+            elif "your_" in key or "_KEY_HERE" in key:
+                warnings.append(f"The API key for '{service}' appears to be a placeholder.")
+        
+        # Advanced validation with Pydantic if available
+        if PYDANTIC_AVAILABLE:
+            try:
+                APIKeyConfig(**api_keys)
+            except ValidationError as e:
+                for error in e.errors():
+                    errors.append(f"[APIs] - {error['loc'][0]}: {error['msg']}")
+
+    def _validate_settings_section(self, config: configparser.ConfigParser, errors: list):
+        """Validates the [Settings] section."""
+        if not PYDANTIC_AVAILABLE:
+            return # Skip if pydantic is not installed
+
+        try:
+            settings_data = {
+                'timeout': config['Settings'].getint('timeout', 30),
+                'log_level': config['Settings'].get('log_level', 'INFO')
+            }
+            AppConfig(**settings_data)
+        except ValueError as e: # Catches getint errors
+            errors.append(f"[Settings] - Invalid integer value provided. {e}")
+        except ValidationError as e:
+            for error in e.errors():
+                errors.append(f"[Settings] - {error['loc'][0]}: {error['msg']}")
+
     def create_sample_config(self, output_path: Path) -> bool:
         """
-        Create a sample configuration file.
+        Creates a sample config.ini file with comments and placeholders.
         
         Args:
-            output_path: Path where to create the sample config
+            output_path: The path where the file should be created.
             
         Returns:
-            True if successful, False otherwise
+            True if creation was successful, False otherwise.
         """
-        try:
-            sample_config = """[APIs]
-# AbuseIPDB API Key (80 hex characters)
-# Get your key from: https://www.abuseipdb.com/api
+        sample_config = """[APIs]
+# --- API Keys (Required for full functionality) ---
+
+# Get your key from: https://www.abuseipdb.com/account/api
 ABUSEIPDB_API_KEY = your_abuseipdb_api_key_here
 
-# URLScan.io API Key (UUID format)
 # Get your key from: https://urlscan.io/user/signup
 URLSCAN_API_KEY = your_urlscan_api_key_here
 
-# VirusTotal API Key (64 hex characters)
 # Get your key from: https://www.virustotal.com/gui/join-us
 VIRUSTOTAL_API_KEY = your_virustotal_api_key_here
 
 [Settings]
-# Request timeout in seconds (1-300)
+# --- Optional Application Settings ---
+
+# Request timeout in seconds (e.g., 30)
 timeout = 30
-
-# Maximum number of redirects to follow (0-50)
-max_redirects = 10
-
-# Enable user agent rotation
-user_agent_rotation = true
-
-# Enable caching of results
-cache_enabled = true
-
-# Cache time-to-live in seconds (0-86400)
-cache_ttl = 3600
 
 # Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
 log_level = INFO
 """
-            
+        try:
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(output_path, 'w', encoding='utf-8') as f:
-                f.write(sample_config)
-            
-            self.logger.info(f"Sample configuration created at: {output_path}")
+            output_path.write_text(sample_config.strip(), encoding='utf-8')
+            printc(Panel(f"Sample configuration file created successfully at:\n[cyan]{output_path.resolve()}[/cyan]",
+                         title="[bold green]Sample Created[/]", border_style="green"))
             return True
-            
-        except Exception as e:
-            self.logger.error(f"Error creating sample config: {e}")
+        except IOError as e:
+            printc(Panel(f"[bold red]Error:[/] Could not write to file at '[cyan]{output_path}[/cyan]'.\nDetails: {e}",
+                         title="[bold red]Creation Failed[/]", border_style="red"))
             return False
-    
-    def validate_api_key_format(self, service: str, api_key: str) -> bool:
-        """
-        Validate API key format for specific service.
-        
-        Args:
-            service: Service name (abuseipdb, virustotal, urlscan)
-            api_key: API key to validate
-            
-        Returns:
-            True if format is valid, False otherwise
-        """
-        if not api_key:
-            return False
-        
-        patterns = {
-            'abuseipdb': r'^[a-f0-9]{80}$',
-            'virustotal': r'^[a-f0-9]{64}$',
-            'urlscan': r'^[a-f0-9-]{36}$'
-        }
-        
-        pattern = patterns.get(service.lower())
-        if not pattern:
-            return False
-        
-        return bool(re.match(pattern, api_key))
-
 
 def main():
-    """CLI interface for configuration validation."""
+    """Provides a command-line interface for the validator."""
     import argparse
     
-    parser = argparse.ArgumentParser(description="PhishScanner Configuration Validator")
-    parser.add_argument('config_file', type=Path, help='Configuration file to validate')
-    parser.add_argument('--create-sample', type=Path, help='Create sample configuration file')
+    parser = argparse.ArgumentParser(
+        description="A validation tool for the PhishScanner config.ini file.",
+        formatter_class=argparse.RawTextHelpFormatter
+    )
+    
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument(
+        '--validate', 
+        dest='config_file', 
+        type=Path, 
+        metavar='PATH',
+        help='Path to the config.ini file to validate.'
+    )
+    group.add_argument(
+        '--create-sample', 
+        dest='sample_path', 
+        type=Path, 
+        metavar='PATH',
+        help="Path to create a new, sample config.ini file (e.g., config/config.ini)."
+    )
     
     args = parser.parse_args()
-    
     validator = ConfigValidator()
     
-    if args.create_sample:
-        if validator.create_sample_config(args.create_sample):
-            print(f"Sample configuration created: {args.create_sample}")
-        else:
-            print("Failed to create sample configuration")
-        return
-    
-    result = validator.validate_config_file(args.config_file)
-    
-    print(f"Configuration validation for: {args.config_file}")
-    print(f"Valid: {'✓' if result.is_valid else '✗'}")
-    
-    if result.errors:
-        print("\nErrors:")
-        for error in result.errors:
-            print(f"  - {error}")
-    
-    if result.warnings:
-        print("\nWarnings:")
-        for warning in result.warnings:
-            print(f"  - {warning}")
-    
-    if result.is_valid:
-        print("\n✓ Configuration is valid!")
-    else:
-        print("\n✗ Configuration has errors that need to be fixed.")
-
+    if args.sample_path:
+        validator.create_sample_config(args.sample_path)
+    elif args.config_file:
+        validator.validate_config_file(args.config_file)
 
 if __name__ == "__main__":
     main()
