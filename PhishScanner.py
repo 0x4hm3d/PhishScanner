@@ -7,7 +7,7 @@ using multiple detection methods including VirusTotal, URLScan.io, and
 various domain analysis techniques.
 
 Author: 0x4hm3d
-Version: 2.2 (Revised)
+Version: 2.3 (Revised)
 """
 
 import argparse
@@ -16,11 +16,9 @@ import logging
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Optional, Tuple, Any, Set
-import json
+from typing import Dict, Optional, Any, Set, List
 
-# The phish_detector.py file provided in the previous turn is compatible and does not require changes.
-from phish_detector import PhishDetector, InvalidURLError
+from phish_detector import PhishDetector, InvalidURLError, FileNotFoundError as PhishDetectorFileNotFoundError
 from rich import print as printc
 from rich.console import Console
 from rich.logging import RichHandler
@@ -29,10 +27,9 @@ from rich.panel import Panel
 from rich.table import Table
 
 # Constants
-VERSION = "2.2"
+VERSION = "2.3"
 AUTHOR = "0x4hm3d"
 DEFAULT_CONFIG_PATH = Path("config/config.ini")
-BANNER_WIDTH = 80
 API_KEY_PLACEHOLDERS: Set[str] = {
     'your_abuseipdb_api_key',
     'your_urlscan_api_key',
@@ -80,7 +77,7 @@ def display_banner() -> None:
     panel = Panel(banner_text, title="[bold red]PhishScanner[/bold red]", border_style="cyan", padding=(1, 2))
     console.print(panel)
 
-def parse_arguments() -> argparse.Namespace:
+def parse_arguments(args: Optional[List[str]] = None) -> argparse.Namespace:
     """Parse and validate command line arguments."""
     parser = argparse.ArgumentParser(
         prog='PhishScanner.py',
@@ -93,20 +90,11 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument('--log-file', metavar="PATH", type=Path, help='Path to log file for detailed logging')
     parser.add_argument('--output-file', type=Path, help='Save JSON results to the specified file path')
 
-    # Create a mutually exclusive group for screenshot behavior to avoid conflicts
     screenshot_group = parser.add_mutually_exclusive_group()
-    screenshot_group.add_argument(
-        '--screenshot',
-        action='store_true',
-        help='Automatically capture screenshot without interactive prompting.'
-    )
-    screenshot_group.add_argument(
-        '--no-screenshot',
-        action='store_true',
-        help='Disable the screenshot capture feature entirely.'
-    )
+    screenshot_group.add_argument('--screenshot', action='store_true', help='Automatically capture screenshot without prompting.')
+    screenshot_group.add_argument('--no-screenshot', action='store_true', help='Disable the screenshot capture feature.')
     
-    return parser.parse_args()
+    return parser.parse_args(args)
 
 def load_api_keys(config_path: Path) -> Dict[str, str]:
     """Load and validate API configuration from file."""
@@ -139,7 +127,6 @@ def load_api_keys(config_path: Path) -> Dict[str, str]:
 def is_api_available(service_name: str, api_key: str) -> bool:
     """Check if an API key is configured and available for use."""
     if api_key in API_KEY_PLACEHOLDERS:
-        printc(f"[yellow][!][/yellow] {service_name} check skipped: API key not configured.")
         return False
     return True
 
@@ -147,62 +134,56 @@ def run_phishing_analysis(detector: PhishDetector, api_keys: Dict[str, str], arg
     """Execute the complete phishing analysis workflow."""
     results = {'url': detector.url, 'timestamp': datetime.now().isoformat(), 'checks': {}}
     
-    def run_check(description: str, check_function, *f_args, **f_kwargs):
-        with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console, transient=True) as progress:
-            task = progress.add_task(description, total=None)
-            try:
-                check_function(*f_args, **f_kwargs)
-                return {'status': 'completed'}
-            except Exception as e:
-                logging.error(f"Error during '{description}': {e}", exc_info=args.verbose)
-                return {'status': 'failed', 'error': str(e)}
-            finally:
-                progress.remove_task(task)
-
     printc(Panel(f"[bold]Target URL:[/] [cyan]{detector.defanged_url}[/]", title="[bold]Analysis Start[/]", border_style="blue"))
 
-    checks_to_run = [
-        ("Analyzing URL redirections...", detector.get_url_redirections, 'redirections', {'verbosity': args.verbose}),
-        ("Checking IP tracking domains...", detector.check_tracking_domain_name, 'ip_tracking', {}),
-        ("Checking URL shortener domains...", detector.check_url_shortener_domain, 'url_shortener', {}),
-    ]
+    # --- Redirection Check ---
+    with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console, transient=True) as progress:
+        progress.add_task("Analyzing URL redirections...", total=None)
+        detector.get_url_redirections(args.verbose)
+    results['checks']['redirections'] = {'status': 'completed'}
 
-    for desc, func, key, kwargs in checks_to_run:
-        results['checks'][key] = run_check(desc, func, **kwargs)
+    # --- Domain Database Checks ---
+    printc("\n[bold]Domain Database Checks[/]")
+    is_shortener = detector.check_url_shortener_domain()
+    if is_shortener:
+        printc(f"[gold1][!][/gold1] Domain [bold cyan]{detector._get_domain_name(detector.url)}[/bold cyan] is a known URL shortener.")
+    else:
+        printc("[spring_green2][+][/spring_green2] Domain not found in URL shortener database.")
+    results['checks']['url_shortener'] = {'status': 'completed', 'is_shortener': is_shortener}
+
+    is_tracker = detector.check_tracking_domain_name()
+    if is_tracker:
+        provider = getattr(detector, 'tracking_provider', 'Unknown')
+        printc(f"[gold1][!][/gold1] Domain [bold cyan]{detector._get_domain_name(detector.url)}[/bold cyan] is a known IP tracking domain from [bold]{provider}[/bold]!")
+    else:
+        printc("[spring_green2][+][/spring_green2] Domain not found in IP tracking database.")
+    results['checks']['ip_tracking'] = {'status': 'completed', 'is_tracker': is_tracker}
 
     final_url = detector.expanded_url or detector.url
     final_ip = detector.target_ip_address
     final_domain = detector._get_domain_name(final_url)
 
-    # API-based checks
+    # --- API-based Checks ---
     if is_api_available("VirusTotal", api_keys['virustotal']):
         printc("\n[bold]VirusTotal Report[/]")
-        results['checks']['virustotal'] = run_check("Querying VirusTotal...", detector.check_virustotal, final_url, api_keys['virustotal'], args.verbose)
+        detector.check_virustotal(final_url, api_keys['virustotal'], args.verbose)
     
     if is_api_available("URLScan.io", api_keys['urlscan_io']):
         printc("\n[bold]URLScan.io Report[/]")
-        results['checks']['urlscan'] = run_check("Querying URLScan.io...", detector.check_urlscan_io, final_url, api_keys['urlscan_io'], args.verbose)
+        detector.check_urlscan_io(final_url, api_keys['urlscan_io'], args.verbose)
     
     if is_api_available("AbuseIPDB", api_keys['abuse_ip_db']):
         printc("\n[bold]AbuseIPDB Report[/]")
-        results['checks']['abuseipdb'] = run_check("Querying AbuseIPDB...", detector.check_abuse_ip_db, final_ip, api_keys['abuse_ip_db'], args.verbose)
+        detector.check_abuse_ip_db(final_ip, api_keys['abuse_ip_db'], args.verbose)
 
-    # WHOIS and Screenshot
+    # --- WHOIS and Screenshot ---
     printc("\n[bold]WHOIS Lookup[/]")
-    results['checks']['whois'] = run_check("Performing WHOIS lookup...", detector.get_whois_info, final_domain or final_ip, args.verbose)
+    detector.get_whois_info(final_domain or final_ip, args.verbose)
     
     if not args.no_screenshot:
         printc("\n[bold]Webpage Screenshot[/]")
-        # The 'auto_display' parameter is set to True if the '--screenshot' flag is used,
-        # bypassing the interactive prompt. Otherwise, it remains False, triggering the prompt.
-        results['checks']['screenshot'] = run_check(
-            "Capturing screenshot...",
-            detector.capture_and_display_screenshot,
-            auto_display=args.screenshot
-        )
-    else:
-        results['checks']['screenshot'] = {'status': 'skipped', 'reason': 'Disabled by --no-screenshot flag'}
-
+        detector.capture_and_display_screenshot(auto_display=args.screenshot)
+    
     results['summary'] = detector.get_analysis_summary()
     return results
 
@@ -212,29 +193,16 @@ def save_results_to_json(results: Dict[str, Any], output_file: Path) -> None:
         output_file.parent.mkdir(parents=True, exist_ok=True)
         with open(output_file, 'w', encoding='utf-8') as f:
             json.dump(results, f, indent=2, ensure_ascii=False)
-        printc(f"[spring_green2][+][/spring_green2] Results saved to: {output_file.resolve()}")
+        printc(f"\n[spring_green2][+][/spring_green2] Results saved to: {output_file.resolve()}")
     except (IOError, OSError) as e:
         logging.error(f"Error saving results to {output_file}: {e}")
         printc(f"[red3][-][/red3] Failed to save results: {e}")
 
 def display_completion_summary(results: Dict[str, Any]) -> None:
-    """Display a summary table of the analysis performed."""
-    table = Table(title="Analysis Completion Summary", show_header=True, header_style="bold magenta")
-    table.add_column("Check", style="cyan")
-    table.add_column("Status")
-    
-    for check, result in results['checks'].items():
-        status = result['status']
-        if status == 'completed': status_display = "[green]✓ Completed[/green]"
-        elif status == 'failed': status_display = "[red]✗ Failed[/red]"
-        elif status == 'skipped': status_display = "[yellow]⚠ Skipped[/yellow]"
-        else: status_display = f"[dim]{status}[/dim]"
-        table.add_row(check.replace('_', ' ').title(), status_display)
-    
-    console.print(table)
-    summary = results['summary']
+    """Display a summary of the analysis."""
+    summary = results.get('summary', {})
     summary_text = f"[bold]Final URL:[/] [cyan]{summary.get('final_url', 'N/A')}[/]\n[bold]Final IP:[/][cyan] {summary.get('final_ip', 'N/A')}[/]"
-    console.print(Panel(summary_text, title="[bold green]Scan Complete[/bold green]", border_style="green"))
+    console.print(Panel(summary_text, title="[bold green]Scan Complete[/bold green]", border_style="green", padding=(1,2)))
 
 def main() -> None:
     """Main application entry point."""
@@ -253,12 +221,8 @@ def main() -> None:
         
         display_completion_summary(results)
         
-    except InvalidURLError as e:
-        logging.error(f"Invalid URL provided: {e}")
-        printc(f"[red3][!][/red3] {e}")
-        sys.exit(1)
-    except FileNotFoundError as e:
-        logging.error(f"A required file was not found: {e}")
+    except (InvalidURLError, PhishDetectorFileNotFoundError) as e:
+        logging.error(f"Initialization failed: {e}")
         printc(f"[red3][!][/red3] {e}")
         sys.exit(1)
     except KeyboardInterrupt:
