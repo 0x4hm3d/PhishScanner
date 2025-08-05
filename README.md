@@ -344,8 +344,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## 🙏 Acknowledgments
 
 - Thanks to all API providers (AbuseIPDB, VirusTotal, URLScan.io)
-- Community contributors and testers
-- Security researchers who help improve detection methods
 
 ## ⚠️ Disclaimer
 
@@ -354,3 +352,4 @@ This tool is for educational and security research purposes only. Users are resp
 ---
 
 **🔍 First Check, Then Click!**
+
